@@ -6,6 +6,8 @@ import paramiko
 from subprocess import run
 import shutil
 import re
+import io
+import plistlib
 
 DEVICE_IP = "192.168.0.96"
 DEVICE_USER = "root"
@@ -40,9 +42,7 @@ def run_clutch(ssh):
     return None
 
 
-def copy_file():
-    sftp = ssh.open_sftp()
-
+def copy_file(sftp):
     # Create local tmp directory if not already existing
     if not os.path.exists(TEMP_DIR):
         os.mkdir(TEMP_DIR)
@@ -53,8 +53,26 @@ def copy_file():
     return file_name
 
 
+def extract_info(sftp):
+    all_bundle_dir = "/var/containers/Bundle/Application/"
+    bundles = sftp.listdir(all_bundle_dir)
 
-if len(sys.argv) < 1:
+    for bundle in bundles:
+        sub_items = sftp.listdir(all_bundle_dir + bundle)
+        app = [item for item in sub_items if item.endswith('.app')][0]
+
+        with io.BytesIO() as fl:
+            sftp.getfo(all_bundle_dir + bundle + '/' + app + '/' + "Info.plist", fl)
+            fl.seek(0)
+
+            contents = plistlib.load(fl)
+            if contents['CFBundleIdentifier'] == bundle_identifier:
+                return contents['CFBundleName'], contents['CFBundleShortVersionString'], contents['CFBundleVersion']
+    return None
+
+
+
+if len(sys.argv) < 2:
     print("You must specify a bundle identifier!")
     sys.exit()
 
@@ -64,7 +82,10 @@ ssh = init_ssh()
 
 out_dir = run_clutch(ssh)
 if out_dir != None:
-    file_name = copy_file()
+    sftp = ssh.open_sftp()
+    file_name = copy_file(sftp)
+    name, short_version, bundle_version = extract_info(sftp)
+    print(name, short_version, bundle_version)
 
     ssh.close()
     print("Closed SSH session.")
