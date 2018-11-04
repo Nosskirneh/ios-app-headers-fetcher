@@ -9,7 +9,7 @@ import re
 import io
 import plistlib
 from pygit2 import Repository, RemoteCallbacks, Keypair
-from pygit2 import GIT_SORT_TIME, GIT_SORT_REVERSE
+from pygit2 import GIT_SORT_TIME
 from pathlib import Path
 
 from config import *
@@ -42,6 +42,7 @@ def run_clutch(ssh):
 
 
 def copy_file(sftp):
+    print("Copying decrypted file...")
     # Create local tmp directory if not already existing
     if not os.path.exists(TEMP_DIR):
         os.mkdir(TEMP_DIR)
@@ -80,10 +81,8 @@ def push(repo, ref='refs/heads/master', remote_name='origin'):
             remote.push([ref], callbacks=callbacks)
 
 
-def commit(name, version, bundle_version):
-    print("Commiting...")
+def try_commit_and_push(name, version, bundle_version):
     repo = Repository('headers/.git')
-
     new_commit_message = name + ' ' + version + ' (' + bundle_version + ')'
 
     # Already commited this version?
@@ -92,8 +91,14 @@ def commit(name, version, bundle_version):
             return False
 
     index = repo.index
+    print(index.diff_to_workdir().stats.files_changed)
+    if index.diff_to_workdir().stats.files_changed == 0:
+        return False
+
+    print("Commiting...")
     index.add_all()
     index.write()
+
     user = repo.default_signature
     tree = index.write_tree()
     ref = 'refs/heads/master'
@@ -130,8 +135,7 @@ if out_dir != None:
 
     print("Starting class-dump...")
     run(["./class-dump", TEMP_DIR + '/' + file_name, "-H", "-o", header_dir])
+    try_commit_and_push(name, short_version, bundle_version)
 
-    commit(name, short_version, bundle_version)
-
-    print("Done! Cleaning up and exiting...")
+    print("Cleaning up and exiting...")
     shutil.rmtree(TEMP_DIR)
