@@ -9,7 +9,7 @@ import re
 import io
 import plistlib
 from pygit2 import Repository, RemoteCallbacks, Keypair
-from pygit2 import GIT_SORT_TIME
+from pygit2 import GIT_SORT_TIME, GIT_SORT_REVERSE
 from pathlib import Path
 
 from config import *
@@ -110,13 +110,26 @@ def try_commit_and_push(name, version, bundle_version):
 
 
 # Main
-if len(sys.argv) < 2:
-    print("You must specify a bundle identifier!")
-    sys.exit()
-
-bundle_identifier = sys.argv[1]
-
 ssh = init_ssh()
+if len(sys.argv) < 2:
+    print("No specified bundle identifier, fetching a list of installed applications...")
+    _, stdout_, _ = ssh.exec_command('Clutch -i', get_pty=True)
+    stdout_.channel.recv_exit_status()
+    lines = stdout_.readlines()
+    print("")
+    for line in lines:
+        print(line.strip())
+
+    number = int(input("Please choose a number: "))
+
+    if number < 1 or number > len(lines) - 1:
+        print("Number outside of range, exiting...")
+        sys.exit()
+
+    bundle_identifier = lines[number].strip().rsplit('<')[1][:-1]
+else:
+    bundle_identifier = sys.argv[1]
+
 out_dir = run_clutch(ssh)
 
 if out_dir != None:
