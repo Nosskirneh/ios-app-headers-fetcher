@@ -8,10 +8,11 @@ import shutil
 import re
 import io
 import plistlib
+from pygit2 import Repository, RemoteCallbacks, Keypair
+from pygit2 import GIT_SORT_TIME, GIT_SORT_REVERSE
+from pathlib import Path
 
-DEVICE_IP = "192.168.0.96"
-DEVICE_USER = "root"
-TEMP_DIR = "tmp"
+from config import *
 
 def init_ssh():
     print("Setting up SSH connection...")
@@ -32,8 +33,6 @@ def run_clutch(ssh):
     stdout_.channel.recv_exit_status()
     lines = stdout_.readlines()
     for line in lines:
-        print(line)
-
         if "/var/tmp/clutch" in line:
             out_dir = '/' + line.split('/', 1)[1].rstrip() + '/'
             # Remove shitty escape char
@@ -71,7 +70,41 @@ def extract_info(sftp):
     return None
 
 
+def push(repo, ref='refs/heads/master', remote_name='origin'):
+    print("Pushing...")
+    ssh_rsa_dir = str(Path.home()) + '/.ssh/'
+    for remote in repo.remotes:
+        if remote.name == remote_name:
+            remote.credentials = Keypair('git', ssh_rsa_dir + 'id_rsa.pub', ssh_rsa_dir + 'id_rsa', '')
+            callbacks = RemoteCallbacks(credentials=remote.credentials)
+            remote.push([ref], callbacks=callbacks)
 
+
+def commit(name, version, bundle_version):
+    print("Commiting...")
+    repo = Repository('headers/.git')
+
+    new_commit_message = name + ' ' + version + ' (' + bundle_version + ')'
+
+    # Already commited this version?
+    for commit in repo.walk(repo.head.target, GIT_SORT_TIME | GIT_SORT_REVERSE):
+        if commit.message == new_commit_message:
+            return False
+
+    index = repo.index
+    index.add_all()
+    index.write()
+    user = repo.default_signature
+    tree = index.write_tree()
+    ref = 'refs/heads/master'
+    repo.create_commit(ref, user, user, new_commit_message, tree, [repo.head.get_object().hex])
+
+    push(repo, ref)
+    return True
+
+
+
+# Main
 if len(sys.argv) < 2:
     print("You must specify a bundle identifier!")
     sys.exit()
@@ -79,13 +112,12 @@ if len(sys.argv) < 2:
 bundle_identifier = sys.argv[1]
 
 ssh = init_ssh()
-
 out_dir = run_clutch(ssh)
+
 if out_dir != None:
     sftp = ssh.open_sftp()
     file_name = copy_file(sftp)
     name, short_version, bundle_version = extract_info(sftp)
-    print(name, short_version, bundle_version)
 
     ssh.close()
     print("Closed SSH session.")
@@ -99,4 +131,7 @@ if out_dir != None:
     print("Starting class-dump...")
     run(["./class-dump", TEMP_DIR + '/' + file_name, "-H", "-o", header_dir])
 
+    commit(name, short_version, bundle_version)
+
+    print("Done! Cleaning up and exiting...")
     shutil.rmtree(TEMP_DIR)
