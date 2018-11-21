@@ -20,7 +20,10 @@ def init_ssh():
     ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
 
     try:
-        ssh.connect(DEVICE_IP, username=DEVICE_USER, key_filename=os.path.expanduser('~/.ssh/id_rsa'))
+        ip = DEVICE_IP
+        if ip == '':
+            ip = os.environ["THEOS_DEVICE_IP"]
+        ssh.connect(ip, username=DEVICE_USER, key_filename=os.path.expanduser('~/.ssh/id_rsa'))
     except:
         print("Client seems to be offline! Exiting...")
         sys.exit()
