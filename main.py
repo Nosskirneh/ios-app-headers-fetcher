@@ -21,9 +21,9 @@ def init_ssh():
 
     try:
         ip = DEVICE_IP
-        if ip == '':
+        if ip == "":
             ip = os.environ["THEOS_DEVICE_IP"]
-        ssh.connect(ip, username=DEVICE_USER, key_filename=os.path.expanduser('~/.ssh/id_rsa'))
+        ssh.connect(ip, username=DEVICE_USER, key_filename=os.path.expanduser("~/.ssh/id_rsa"))
     except:
         print("Client seems to be offline! Exiting...")
         sys.exit()
@@ -32,15 +32,15 @@ def init_ssh():
 
 def run_clutch(ssh):
     print("Decrypting app...")
-    _, stdout_, _ = ssh.exec_command('Clutch -b ' + bundle_identifier, get_pty=True)
+    _, stdout_, _ = ssh.exec_command("Clutch -b " + bundle_identifier, get_pty=True)
     stdout_.channel.recv_exit_status()
     lines = stdout_.readlines()
     for line in lines:
         if "/var/tmp/clutch" in line:
-            out_dir = '/' + line.split('/', 1)[1].rstrip() + '/'
+            out_dir = "/" + line.split("/", 1)[1].rstrip() + "/"
             # Remove shitty escape char
-            ansi_escape = re.compile(r'\x1B\[[0-?]*[ -/]*[@-~]')
-            return ansi_escape.sub('', out_dir)
+            ansi_escape = re.compile(r"\x1B\[[0-?]*[ -/]*[@-~]")
+            return ansi_escape.sub("", out_dir)
     return None
 
 
@@ -52,7 +52,7 @@ def copy_file(sftp):
 
     folder = out_dir + bundle_identifier
     file_name = sftp.listdir(folder)[0]
-    sftp.get(folder + '/' + file_name, TEMP_DIR + '/' + file_name)
+    sftp.get(folder + "/" + file_name, TEMP_DIR + "/" + file_name)
     return file_name
 
 
@@ -62,31 +62,31 @@ def extract_info(sftp):
 
     for bundle in bundles:
         sub_items = sftp.listdir(all_bundle_dir + bundle)
-        app = [item for item in sub_items if item.endswith('.app')][0]
+        app = [item for item in sub_items if item.endswith(".app")][0]
 
         with io.BytesIO() as fl:
-            sftp.getfo(all_bundle_dir + bundle + '/' + app + '/' + "Info.plist", fl)
+            sftp.getfo(all_bundle_dir + bundle + "/" + app + "/" + "Info.plist", fl)
             fl.seek(0)
 
             contents = plistlib.load(fl)
-            if contents['CFBundleIdentifier'] == bundle_identifier:
-                return contents['CFBundleName'], contents['CFBundleShortVersionString'], contents['CFBundleVersion']
+            if contents["CFBundleIdentifier"] == bundle_identifier:
+                return contents["CFBundleName"], contents["CFBundleShortVersionString"], contents["CFBundleVersion"]
     return None
 
 
-def push(repo, ref='refs/heads/master', remote_name='origin'):
+def push(repo, ref="refs/heads/master", remote_name="origin"):
     print("Pushing...")
-    ssh_rsa_dir = str(Path.home()) + '/.ssh/'
+    ssh_rsa_dir = str(Path.home()) + "/.ssh/"
     for remote in repo.remotes:
         if remote.name == remote_name:
-            remote.credentials = Keypair('git', ssh_rsa_dir + 'id_rsa.pub', ssh_rsa_dir + 'id_rsa', '')
+            remote.credentials = Keypair("git", ssh_rsa_dir + "id_rsa.pub", ssh_rsa_dir + "id_rsa", "")
             callbacks = RemoteCallbacks(credentials=remote.credentials)
             remote.push([ref], callbacks=callbacks)
 
 
 def try_commit_and_push(name, version, bundle_version):
-    repo = Repository('headers/.git')
-    new_commit_message = name + ' ' + version + ' (' + bundle_version + ')'
+    repo = Repository("headers/.git")
+    new_commit_message = name + " " + version + " (" + bundle_version + ")"
 
     # Already commited this version?
     for commit in repo.walk(repo.head.target, GIT_SORT_TIME | GIT_SORT_REVERSE):
@@ -94,17 +94,18 @@ def try_commit_and_push(name, version, bundle_version):
             return False
 
     index = repo.index
-    print(index.diff_to_workdir().stats.files_changed)
-    if index.diff_to_workdir().stats.files_changed == 0:
-        return False
-
-    print("Commiting...")
     index.add_all()
     index.write()
 
+    # print(index.diff_to_workdir().stats.files_changed)
+    # if index.diff_to_workdir().stats.files_changed == 0:
+    #     return False
+
+    print("Commiting...")
+
     user = repo.default_signature
     tree = index.write_tree()
-    ref = 'refs/heads/master'
+    ref = "refs/heads/master"
     repo.create_commit(ref, user, user, new_commit_message, tree, [repo.head.get_object().hex])
 
     push(repo, ref)
@@ -116,7 +117,7 @@ def try_commit_and_push(name, version, bundle_version):
 ssh = init_ssh()
 if len(sys.argv) < 2:
     print("No specified bundle identifier, fetching a list of installed applications...")
-    _, stdout_, _ = ssh.exec_command('Clutch -i', get_pty=True)
+    _, stdout_, _ = ssh.exec_command("Clutch -i", get_pty=True)
     stdout_.channel.recv_exit_status()
     lines = stdout_.readlines()
     print("")
@@ -129,7 +130,7 @@ if len(sys.argv) < 2:
         print("Number outside of range, exiting...")
         sys.exit()
 
-    bundle_identifier = lines[number].strip().rsplit('<')[1][:-1]
+    bundle_identifier = lines[number].strip().rsplit("<")[1][:-1]
 else:
     bundle_identifier = sys.argv[1]
 
@@ -150,7 +151,7 @@ if out_dir != None:
         shutil.rmtree(header_dir)
 
     print("Starting class-dump...")
-    run(["./class-dump", TEMP_DIR + '/' + file_name, "-H", "-o", header_dir])
+    run(["./class-dump", TEMP_DIR + "/" + file_name, "-H", "-o", header_dir])
     try_commit_and_push(name, short_version, bundle_version)
 
     print("Cleaning up and exiting...")
