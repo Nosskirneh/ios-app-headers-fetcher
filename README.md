@@ -2,7 +2,7 @@
 
 Headers from iOS are easily browsed at [limneos site](http://developer.limneos.net/?ios=11.1.2) and [other GitHub repos](https://github.com/nst/iOS-Runtime-Headers/). However, headers from 3rd party apps are not publicity available. When building tweaks that depend on such apps, it's always a cat and mouse game to support their latest versions. Being able to compare classes and methods between versions makes this a lot easier.
 
-ios-app-headers-fetcher is a Python script that first decrypts the app over SSH on an iOS device. The decrypted app is then transferred back where the headers are dumped and commited to a repo.
+ios-app-headers-fetcher is a Python script that first decrypts the app over SSH on an iOS device. The decrypted app is then transferred back where the headers are dumped and committed to a repo.
 
 In my tweaks I often target Spotify and Deezer. These two, and possibly others can be found [at the headers repo](https://github.com/Nosskirneh/ios-app-headers).
 
